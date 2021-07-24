@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  Stage:
+    Type: String
+  Project:
+    Type: String
+  DomainName:
+    Type: String
+  CertArn:
+    Type: AWS::SSM::Parameter::Value<String>
+  ContentBucket:
+    Type: AWS::SSM::Parameter::Value<String>
+  LogsBucket:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+        - Id: S3Origin
+          DomainName: !Sub ${ContentBucket}.s3.amazonaws.com
+          S3OriginConfig:
+            OriginAccessIdentity: !Join [ '', [ origin-access-identity/cloudfront/, !Ref ContentAccessId ] ]
+        Enabled: true
+        Comment: !Sub ${AWS::StackName}Distribution
+        DefaultRootObject: index.html
+        Logging:
+          IncludeCookies: false
+          Bucket: !Sub ${LogsBucket}.s3.amazonaws.com
+          Prefix: !Ref AWS::StackName
+        Aliases:
+          - !Ref DomainName
+        DefaultCacheBehavior:
+          DefaultTTL: 3600
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          TargetOriginId: S3Origin
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2018
+
+  ContentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ContentBucket
+      PolicyDocument:
+        Statement:
+          - Action: s3:Get*
+            Effect: Allow
+            Resource: !Sub arn:aws:s3:::${ContentBucket}/*
+            Principal:
+              CanonicalUser: !GetAtt ContentAccessId.S3CanonicalUserId
+
+  ContentAccessId:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties: 
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub ${AWS::StackName}AccessId
+
+Outputs:
+  DistributionDomain:
+    Description: CNAME record to be created
+    Value: !GetAtt Distribution.DomainName

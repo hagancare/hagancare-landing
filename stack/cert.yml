@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  Stage:
+    Type: String
+  Project:
+    Type: String
+  DomainName:
+    Type: String
+
+Resources:
+  HttpsCert:
+    Type: AWS::CertificateManager::Certificate
+    DeletionPolicy: Retain
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+
+Outputs:
+  CertArn:
+    Description: Public ACM cert for site
+    Value: !Ref HttpsCert
